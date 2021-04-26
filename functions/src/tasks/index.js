@@ -1,9 +1,6 @@
 const admin = require('firebase-admin')
-
 const serviceAccount = require('../../credentials.json')
-
-let db;
-
+let db
 function connectToFirestore() {
   if (!db) {
     admin.initializeApp({
@@ -12,7 +9,7 @@ function connectToFirestore() {
     db = admin.firestore()
   }
 }
-exports.getTasks = (req, res) => {
+exports.returnTasks = (callback) => {
   connectToFirestore()
   db.collection('tasks')
     .get()
@@ -23,16 +20,28 @@ exports.getTasks = (req, res) => {
         thisTask.id = doc.id
         ourTasks.push(thisTask)
       })
-      res.set('Cache-Control', 'public, max-age=90, s-maxage=120')
-      res.send(ourTasks)
+      callback(ourTasks)
     })
-    .catch((err) => res.status(500).send('Error getting tasks' + err.message))
+    .catch((err) => {
+      callback('Error getting tasks: ' + err.message)
+    })
 }
-
+exports.getTasks = (req, res) => {
+  this.returnTasks(ourTasks => {
+    const status = ourTasks.beginsWith('Error') ? 500 : 200
+    res.set('Cache-Control', 'public, max-age=90, s-maxage=120')
+    res.status(status).send(ourTasks)
+  })
+}
 exports.createTask = (req, res) => {
   connectToFirestore()
   const newTask = req.body
-  db.collection('tasks').add(newTask)
-  .then(() => this.getTasks(req, res))
-  .catch((err) => res.status(500).send('Error creating tasks' + err.message))
+  db.collection('tasks')
+    .add(newTask)
+    .then(() => {
+      this.returnTasks(ourTasks=>{
+        res.send(ourTasks)
+      })
+    })
+    .catch((err) => res.status(500).send('Error creating task: ' + err.message))
 }
